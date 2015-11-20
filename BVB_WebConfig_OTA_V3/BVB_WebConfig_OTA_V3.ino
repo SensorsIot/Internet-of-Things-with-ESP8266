@@ -450,9 +450,9 @@ long getDeparture(String lookupString, int pos) {
     second = line.substring(secondsStart, secondsStart + 2).toInt();
 
     // ----------------------- Spieldaten ------------------------------
-    hour = 17;
-    minute = 28;
-    second = 0;
+  //  hour = 17;
+  //  minute = 28;
+  //  second = 0;
 
     // ----------------------- Spieldaten ------------------------------
 
