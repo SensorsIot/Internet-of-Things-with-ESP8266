@@ -75,13 +75,13 @@ void send_NTP_configuration_html()
 {
   if (server.args() > 0 )  // Save Settings
   {
-    config.daylight = false;
+    config.isDayLightSaving = false;
     String temp = "";
     for ( uint8_t i = 0; i < server.args(); i++ ) {
       if (server.argName(i) == "ntpserver") config.ntpServerName = urldecode( server.arg(i)); 
       if (server.argName(i) == "update") config.Update_Time_Via_NTP_Every =  server.arg(i).toInt(); 
-      if (server.argName(i) == "tz") config.timezone =  server.arg(i).toInt(); 
-      if (server.argName(i) == "dst") config.daylight = true; 
+      if (server.argName(i) == "tz") config.timeZone =  server.arg(i).toInt(); 
+      if (server.argName(i) == "dst") config.isDayLightSaving = true; 
     }
     WriteConfig();
    
@@ -100,8 +100,8 @@ void send_NTP_configuration_values_html()
   String values ="";
   values += "ntpserver|" + (String) config.ntpServerName + "|input\n";
   values += "update|" +  (String) config.Update_Time_Via_NTP_Every + "|input\n";
-  values += "tz|" +  (String) config.timezone + "|input\n";
-  values += "dst|" +  (String) (config.daylight ? "checked" : "") + "|chk\n";
+  values += "tz|" +  (String) config.timeZone + "|input\n";
+  values += "dst|" +  (String) (config.isDayLightSaving ? "checked" : "") + "|chk\n";
   server.send ( 200, "text/plain", values);
   Serial.println(__FUNCTION__); 
   

@@ -35,6 +35,7 @@
 
 #include "helpers.h"
 #include "global.h"
+#include "NTP.h"
 
 // Include the HTML, STYLE and Script "Pages"
 
@@ -97,8 +98,8 @@ void setup ( void ) {
     config.Gateway[0] = 192; config.Gateway[1] = 168; config.Gateway[2] = 1; config.Gateway[3] = 1;
     config.ntpServerName = "0.ch.pool.ntp.org";
     config.Update_Time_Via_NTP_Every =  5;
-    config.timezone = 1;
-    config.daylight = true;
+    config.timeZone = 1;
+    config.isDayLightSaving = true;
     config.DeviceName = "Not Named";
     config.wayToStation = 3;
     config.warningBegin = 5;
@@ -120,30 +121,12 @@ void setup ( void ) {
   } else {
     // normal operation
     status = admin;
+    tkSecond.attach(1, ISRsecondTick);
 
-    currentDirection = EEPROM.read(301);
-    if (currentDirection != 0) {
-
-      // Recovery
-      Serial.println("Recovery");
-      WiFi.mode(WIFI_AP);
-      ledColor = off;
-
-      switch (currentDirection) {
-        case 1:
-          status = requestLeft;
-          Serial.println("Recovery left");
-          break;
-
-        case 2:
-          status = requestRight;
-          Serial.println("Recovery right");
-          break;
-
-        default:
-          status = doNothing;
-          break;
-      }
+    currentDirection = EEPROM.read(300);
+    if (currentDirection == left || currentDirection == right) {
+      // ---------------- RECOVERY -----------------------
+      status = recovery;
     } else {
 
       // normal operation
@@ -196,10 +179,8 @@ void setup ( void ) {
       }  );
       server.begin();
       Serial.println( "HTTP server started" );
-      tkSecond.attach(1, Second_Tick);
 
       AdminTimeOutCounter = 0;
-      entryLoop = millis();
       lastStatus = doNothing;
     }
   }
@@ -212,10 +193,9 @@ void loop(void ) {
     otaReceive();
   }
   else {
-    if ( cNTP_Update > (config.Update_Time_Via_NTP_Every * 60) )
-    {
-      okNTPvalue = NTPRefresh();
+    if ( cNTP_Update > (config.Update_Time_Via_NTP_Every * 60 )) {
       cNTP_Update = 0;
+      status = waitForNTP; //
     }
     customLoop();
   }
@@ -224,25 +204,47 @@ void loop(void ) {
 //-------------------------------------- CUSTOM ----------------------------------------
 
 void customLoop() {
+  String urlRight =  "/v1/connections?from=" + config.base + "&to=" + config.right + "&fields[]=connections/from/departure&limit=1";
+  String urlLeft =   "/v1/connections?from=" + config.base + "&to=" + config.left + "&fields[]=connections/from/departure&limit=1";
   int _minTillDep;
   defDirection _dir;
+  strDateTime _DateTime;
 
   // Non blocking code !!!
   switch (status) {
     case admin:
       ledColor = both;
       server.handleClient();
+
       // exit
-      if (AdminTimeOutCounter > AdminTimeOut) status = waitForNTP;
+      if (AdminTimeOutCounter > AdminTimeOut) {
+        Serial.println("Admin Mode disabled!");
+        WiFi.mode(WIFI_AP);
+        ledColor = red;
+        for (int hi = 0; hi < 3; hi++) beep(2);
+        ConfigureWifi();
+        ledColor = green;
+        status = waitForNTP;
+        lastStatus = admin;
+      }
       break;
 
     case waitForNTP:
-      Serial.println("Admin Mode disabled!");
-      WiFi.mode(WIFI_AP);
-      ledColor = red;
-      for (int hi = 0; hi < 3; hi++) beep(2);
-      ConfigureWifi();
-      if (NTPRefresh()) status = doNothing; // NTP available, goto doNothing
+      _DateTime = getNTPtime(config.timeZone, config.isDayLightSaving);
+      //    _DateTime.year = 1970;
+
+      // exit
+      Serial.print("_DateTime.hour ");
+      Serial.print(_DateTime.hour);
+      Serial.print(" _DateTime.minute ");
+      Serial.print(_DateTime.minute);
+      Serial.print(" _DateTime.second ");
+      Serial.println(_DateTime.second);
+      if (_DateTime.year > 1970) {
+        DateTime = _DateTime;
+        status = lastStatus;
+      }
+      else Serial.println("Waiting for NTP signal");
       break;
 
     case doNothing:
@@ -252,67 +254,104 @@ void customLoop() {
 
       // exit
       _dir = readButton();
+      isKeyPressed = true;
       if (_dir == left) status = requestLeft;
       if (_dir == right) status = requestRight;
+      lastStatus = doNothing;
       break;
 
     case requestLeft:
-      url =  "/v1/connections?from=" + config.base + "&to=" + config.left + "&fields[]=connections/from/departure&limit=1";
-      // Serial.println(url);
       storeDirToEEPROM(left);
-      _minTillDep = getData(url);
-      if (_minTillDep > -999) {  // valid answer
-        ledColor = green;
+      _minTillDep = getTimeTillDeparture(urlLeft);
+      if (_minTillDep != -999) {
         minTillDep = _minTillDep  - config.wayToStation;
-        if (_minTillDep < 0 ) status = doNothing;
-        else {
-          entryLoop = millis();
-          status = waitLeft;
-        }
-      } else ledColor = red;
+
+        // set singal frequency
+        if (minTillDep >= 0 && minTillDep <= 10) freq = intensity[minTillDep];
+        else freq = -1;
+        loopTime = getLoopTime(minTillDep);
+
+        // exit
+        if (minTillDep >= 0) status = wait;
+        if (minTillDep < 0 && lastStatus == doNothing) status = waitForNext;  // if button is pressed after warning ends and before vehicule left
+        else status = doNothing;
+        waitLoopEntry = millis();
+      }
+      lastStatus = requestLeft;
+      lastStatusSaved = requestLeft;
       break;
 
     case requestRight:
-      url =  "/v1/connections?from=" + config.base + "&to=" + config.right + "&fields[]=connections/from/departure&limit=1";
-      //Serial.println(url);
       storeDirToEEPROM(right);
-      _minTillDep = getData(url);
-      if (_minTillDep > -999) {
-        ledColor = green;
+      _minTillDep = getTimeTillDeparture(urlRight);
+      if (_minTillDep != -999) {
         minTillDep = _minTillDep - config.wayToStation;
-        if (_minTillDep < 0 ) status = doNothing;
-        else {
-          entryLoop = millis();
-          status = waitRight;
+
+        // set singal frequency
+        if (minTillDep >= 0 && minTillDep <= 10) freq = intensity[minTillDep];
+        else freq = -1;
+        loopTime = getLoopTime(minTillDep);
+
+        // exit
+        if (minTillDep >= 0) status = wait;
+        if (minTillDep < 0 ) {
+          if (lastStatus == doNothing) status = waitForNext;  // if button is pressed after warning ends and before vehicule left
+          else status = doNothing;
         }
-      } else ledColor = red;
+        waitLoopEntry = millis();
+      }
+      lastStatus = requestRight;
+      lastStatusSaved = requestRight;
       break;
 
-    case waitLeft:
-      freq = getWarningFrequency(minTillDep);
-      loopTime = getLoopTime(minTillDep);
-      if (millis() - ledCounter > 1000 ) {
-        ledCounter = 0;
-        ledState = !ledState;
-      }
+    case wait:
+
       // Exit
-      if (millis() - entryLoop >= loopTime) status = requestLeft;
-      if (readButton() == right) status = requestRight;
+      if (millis() - waitLoopEntry >= loopTime) status = lastStatusSaved;
+      _dir = readButton();
+      if (_dir == right) status = requestRight;
+      if (_dir == left) status = requestLeft;
+      lastStatus = wait;
       break;
 
-    case waitRight:
-      //  Serial.println("Wait");
-      freq = getWarningFrequency(minTillDep);
-      loopTime = getLoopTime(minTillDep);
 
-      if (millis() - ledCounter > 1000 ) {
-        ledCounter = 0;
-        ledState = !ledState;
+    case waitForNext:
+      _minTillDep = getTimeTillDeparture(urlRight);
+      if (_minTillDep != -999) {
+        // exit
+        _dir = readButton();
+        if (millis() - waitLoopEntry >= loopTime && _minTillDep >= 0) status = lastStatusSaved;
       }
+      if (_dir == left) status = requestLeft;
+      lastStatus = waitForNext;
+      break;
 
-      // Exit
-      if (readButton() == left) status = requestLeft;
-      if (millis() - entryLoop >= loopTime) status = requestRight;
+
+    case recovery:
+      Serial.println("------------ Recovery --------------");
+      Serial.println("");
+      WiFi.mode(WIFI_AP);
+      ConfigureWifi();
+      ledColor = off;
+      Serial.println(currentDirection);
+
+      // exit
+      switch (currentDirection) {
+        case left:
+          lastStatus = requestLeft;  // after waitForNTP it goes directly to requestLeft
+          Serial.println("Recovery left");
+          break;
+
+        case right:
+          lastStatus = requestRight;  // after waitForNTP it goes directly to requestRight
+          Serial.println("Recovery right");
+          break;
+
+        default:
+          lastStatus = doNothing;  // after waitForNTP it goes directly to requestRight
+          break;
+      }
+      status = waitForNTP;
       break;
 
     default:
@@ -320,72 +359,60 @@ void customLoop() {
   }
 
   // Display LED
+
+  if (millis() - ledCounter > 1000 ) {
+    ledCounter = 0;
+    ledState = !ledState;
+  }
+
   if (ledState)  led(ledColor);
   else led(off);
 
   // send Signal (Beep)
-  freq = getWarningFrequency(minTillDep);
   if (freq < 0) setSignal(0, 0); // off
   else setSignal(1, freq);
 
   if (lastStatus != status) displayStatus();
-  lastStatus = status;
 }
 
 
 //------------------------- END LOOP -------------------------------------
 
-int getData(String url) {
+
+
+
+int getTimeTillDeparture(String url) {
   int diffSec = 0;
   int diffMin = -999;
   int tim = 0;
   int dep = 0;
-  bool ok = false;
-  url.replace(" ", "%20");
-
-  yield();
-
 
   tim = getTime();
+  url.replace(" ", "%20");  // replace blanks with %20 for HTTP requests
+  dep = getNextDeparture(url);
+  if (dep != -999) {
+    ledColor = green;
+    //  Serial.println(tim);
+    //  Serial.println(dep);
+    diffSec = dep - tim;
 
-  if (!client.connect("transport.opendata.ch", 80)) {
-    Serial.println("connection to ... failed");
-  } else {
-    client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host:" + serverTransport + "\r\n" + "Connection: keep-alive\r\n\r\n");
-    // Wait for answer of webservice
-    // Serial.println(url);
-    while (!client.available()) {
-      // Serial.println("waiting");
-      delay(200);
-    }
+    if (diffSec < -10000) diffSec += 24 * 3600;  // correct if time is before midnight and departure is after midnight
+    diffMin = diffSec / 60;
 
-    // Service answered
-    ok = getStatus();
-    // Serial.print("HTTP Status ");
-    //Serial.println(ok);
+    // ----------------- Spieldaten -------------------------
+    // diffMin = -3;
 
-    if (ok) {
-      while (client.available()) {
-        yield();
-        line = client.readStringUntil('\n');
-        // Serial.println(line);
-        if (dep == 0) dep = getDeparture("departure", 23);
-      }
-      //  Serial.println(tim);
-      //  Serial.println(dep);
-      diffSec = dep - tim;
-
-      if (diffSec < -10000) diffSec += 24 * 3600;  // correct if time is before midnight and departure is after midnight
-      diffMin = diffSec / 60;
-    } else {
-      //   Serial.println("-- No data from Service --");
-      diffMin = -999;
-    }
+    Serial.print("diffMin ");
+    Serial.println(diffMin);
   }
-  Serial.print("diffMin ");
-  Serial.println(diffMin);
+  else {
+    diffMin = -999;
+    ledColor = red;
+  }
   return diffMin ;
 }
+
+
 
 boolean getStatus() {
   bool stat;
@@ -410,9 +437,55 @@ boolean getStatus() {
   }
 }
 
+
+int getNextDeparture(String url) {
+  int dep = 0;
+  bool ok = false;
+  unsigned long _watchDog;
+
+
+  url.replace(" ", "%20");
+
+  _watchDog = millis();
+  while (millis() - _watchDog < 10000 && !ok) {
+    yield();
+    if (!client.connect("transport.opendata.ch", 80)) {
+      Serial.println("connection to ... failed");
+      ledColor = red;
+    } else {
+      client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host:" + serverTransport + "\r\n" + "Connection: keep-alive\r\n\r\n");
+      // Wait for answer of webservice
+      // Serial.println(url);
+      while (!client.available()) {
+        // Serial.println("waiting");
+        delay(200);
+      }
+
+      // Service answered
+      ok = getStatus();
+      // Serial.print("HTTP Status ");
+      //Serial.println(ok);
+
+      if (ok) {
+        while (client.available()) {
+          yield();
+          line = client.readStringUntil('\n');
+          // Serial.println(line);
+          if (dep == 0) dep = decodeDepartureTime("departure", 23);
+        }
+      } else {
+        Serial.println("-- No data from Service --");
+        ledColor = red;
+      }
+    }
+  }
+  if (ok) ledColor = green;
+  else dep = -999; // error
+  return dep;
+}
+
+
 long getTime() {
-
-
   Serial.print("Time      ");
   Serial.print(DateTime.hour);
 
@@ -427,7 +500,9 @@ long getTime() {
 
 }
 
-long getDeparture(String lookupString, int pos) {
+
+
+long decodeDepartureTime(String lookupString, int pos) {
   int hour;
   int minute;
   int second;
@@ -450,9 +525,9 @@ long getDeparture(String lookupString, int pos) {
     second = line.substring(secondsStart, secondsStart + 2).toInt();
 
     // ----------------------- Spieldaten ------------------------------
-  //  hour = 17;
-  //  minute = 28;
-  //  second = 0;
+    // hour = 10;
+    //  minute = 28;
+    //  second = 0;
 
     // ----------------------- Spieldaten ------------------------------
 
@@ -487,13 +562,6 @@ defDirection readButton() {
 }
 
 
-int getWarningFrequency(int _min ) {
-  int _frequency = -1;
-  if (_min > 0) _frequency = intensity[_min];
-  return _frequency;
-}
-
-
 void beep(int _dura) {
   beepOnTime = _dura;
   beepOffTime = 2;
@@ -513,7 +581,7 @@ void setSignal (int _onTime, int _offTime) {
 // define loop time based on time till departure
 int getLoopTime(int _timeTillDeparture) {
   int _loopTime = LOOP_FAST;
-  if (_timeTillDeparture > 10) {
+  if (_timeTillDeparture > 5) {
     _loopTime = LOOP_SLOW;
   } else if (_timeTillDeparture = 0) _loopTime = 0;
   return _loopTime;
@@ -530,18 +598,18 @@ void storeDirToEEPROM(defDirection dir) {
 }
 
 void displayStatus() {
+  Serial.print("lastStatusSaved ");
+  Serial.print(lastStatusSaved);
   Serial.print(" Status ");
   Serial.print(status);
+  Serial.print(" lastStatus ");
+  Serial.print(lastStatus);
   Serial.print(" minTillDep ");
   Serial.print(minTillDep);
   Serial.print(" loopTime ");
   Serial.print(loopTime);
   Serial.print(" freq ");
   Serial.print(freq);
-  Serial.print(" beepOntimer ");
-  Serial.print(beepOnTimer);
-  Serial.print(" beepOffTimer ");
-  Serial.print(beepOffTimer);
   Serial.print(" time ");
   Serial.println(millis() / 1000);
 }
@@ -667,6 +735,18 @@ void otaReceive() {
     }
     free(sbuf);
   }
+}
+
+void ISRsecondTick()
+{
+  unsigned long _time;
+
+  strDateTime _tempDateTime;
+  AdminTimeOutCounter++;
+  cNTP_Update++;
+  UnixTimestamp++;
+  _time = adjustTimeZone(UnixTimestamp, config.timeZone, config.isDayLightSaving);
+  DateTime = ConvertUnixTimeStamp(_time);
 }
 
 
