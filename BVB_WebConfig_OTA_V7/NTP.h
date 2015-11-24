@@ -25,7 +25,9 @@ strDateTime DateTime;                      // Global DateTime structure, will be
 const int NTP_PACKET_SIZE = 48;
 byte packetBuffer[ NTP_PACKET_SIZE];
 
-unsigned long getNTPtime()
+
+
+void storeNTPtime()
 {
   unsigned long _unixTime = 0;
 
@@ -52,7 +54,7 @@ unsigned long getNTPtime()
     delay(100);
 
     int cb = UDPNTPClient.parsePacket();
-    if (!cb) {
+    if (cb == 0) {
       Serial.println("No NTP packet yet");
     }
     else
@@ -72,7 +74,7 @@ unsigned long getNTPtime()
     delay(500);
   }
   yield();
-  return _unixTime;
+  if (_unixTime > 0) UnixTimestamp = _unixTime; // store universally available time stamp
 }
 
 
@@ -147,23 +149,20 @@ boolean summerTime(unsigned long _timeStamp ) {
 
 unsigned long adjustTimeZone(unsigned long _timeStamp, int _timeZone, bool _isDayLightSavingSaving) {
   strDateTime _tempDateTime;
-
   _timeStamp += _timeZone *  360; // adjust timezone
-
   // printTime("Innerhalb adjustTimeZone ", ConvertUnixTimeStamp(_timeStamp));
-
   if (_isDayLightSavingSaving && summerTime(_timeStamp)) _timeStamp += 3600; // Sommerzeit beachten
-
   return _timeStamp;
 }
 
 
-
-strDateTime getNTPtime(int _timeZone, bool _isDayLightSaving) {
-  unsigned long _unixTime = getNTPtime();
-  if (_unixTime > 0) {
-    UnixTimestamp = _unixTime;
-    unsigned long _time = adjustTimeZone(_unixTime, _timeZone, _isDayLightSaving);
-    DateTime = ConvertUnixTimeStamp(_time);
-  }
+void ISRsecondTick()
+{
+  strDateTime _tempDateTime;
+  AdminTimeOutCounter++;
+  cNTP_Update++;
+  UnixTimestamp++;
+  absoluteActualTime = adjustTimeZone(UnixTimestamp, config.timeZone, config.isDayLightSaving);
+  DateTime = ConvertUnixTimeStamp(absoluteActualTime);  //  convert to DateTime format
+  actualTime = 3600 * DateTime.hour + 60 * DateTime.minute + DateTime.second;
 }

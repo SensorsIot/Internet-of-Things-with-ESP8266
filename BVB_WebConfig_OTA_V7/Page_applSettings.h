@@ -67,7 +67,6 @@ void send_application_configuration_html()
     if (config.warningBegin<0) config.warningBegin=0;
     
     WriteConfig();
-    AdminTimeOutCounter=0;
   }
    server.send ( 200, "text/html", PAGE_ApplicationConfiguration ); 
   Serial.println(__FUNCTION__); 
@@ -93,5 +92,6 @@ void send_application_configuration_values_html()
   server.send ( 200, "text/plain", values);
   Serial.print("1 ");
   Serial.println(__FUNCTION__); 
+  AdminTimeOutCounter=0;
   
 }

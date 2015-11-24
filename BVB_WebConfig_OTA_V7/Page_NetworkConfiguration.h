@@ -99,9 +99,7 @@ void send_network_configuration_html()
 		}
 		 server.send ( 200, "text/html", PAGE_WaitAndReload );
 		WriteConfig();
-		ConfigureWifi();
-		AdminTimeOutCounter=0;
-		
+		ConfigureWifi();		
 	}
 	else
 	{
@@ -201,7 +199,7 @@ void send_connection_state_values_html()
 	values += "networks|" +  Networks + "|div\n";
 	server.send ( 200, "text/plain", values);
 	Serial.println(__FUNCTION__); 
-	
+	AdminTimeOutCounter=0;
 }
 
 

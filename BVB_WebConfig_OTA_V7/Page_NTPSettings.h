@@ -104,5 +104,5 @@ void send_NTP_configuration_values_html()
   values += "dst|" +  (String) (config.isDayLightSaving ? "checked" : "") + "|chk\n";
   server.send ( 200, "text/plain", values);
   Serial.println(__FUNCTION__); 
-  
+  AdminTimeOutCounter=0;
 }

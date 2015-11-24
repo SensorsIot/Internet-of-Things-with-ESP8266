@@ -63,7 +63,7 @@ void send_information_values_html ()
   values += "x_mac|" + GetMacAddress() +  "|div\n";
   server.send ( 200, "text/plain", values);
   Serial.println(__FUNCTION__); 
-
+  AdminTimeOutCounter=0;
 }
 
 

@@ -11,11 +11,13 @@ boolean Refresh = false; // For Main Loop, to refresh things like GPIO / WS2812
 int cNTP_Update = 0;											// Counter for Updating the time via NTP
 Ticker tkSecond;												// Second - Timer for Updating Datetime Structure
 boolean AdminEnabled = true;		// Enable Admin Mode for a given Time
-byte Minute_Old = 100;				// Helpvariable for checking, when a new Minute comes up (for Auto Turn On / Off)
 
 #define ACCESS_POINT_NAME  "ESP"
 //#define ACCESS_POINT_PASSWORD  "12345678"
-#define AdminTimeOut 60  // Defines the Time in Seconds, when the Admin-Mode will be diabled
+#define AdminTimeOut 1  // Defines the Time in Seconds, when the Admin-Mode will be diabled
+
+#define MAX_CONNECTIONS 3
+
 
 
 
@@ -36,25 +38,25 @@ int freq = -1; // signal off
 
 int counter = 0;
 
-#define LOOP_FAST 5000
-#define LOOP_SLOW 60000
+#define LOOP_FAST 60 * 100
+#define LOOP_SLOW 120 * 100
 #define BEEPTICKER 100
 char serverTransport[] = "transport.opendata.ch";
 String url;
-String line;
 const int httpPort = 80;
 const int intensity[] = {1, 4, 10, 20, 20, 40, 40, 80, 80, 160, 160, 160};
-int loopTime = LOOP_SLOW;
-unsigned long waitLoopEntry;
+unsigned long waitLoopEntry, loopTime = LOOP_SLOW, waitJSONLoopEntry;
 bool okNTPvalue = false;  // NTP signal ok
 bool requestOK = false;
-int minTillDep, secTillDep, lastMinute;
+int minTillDep = -999, secTillDep, lastMinute;
 ledColor ledColor;
 boolean ledState = false;
 unsigned long  ledCounter;
 char str[80];
-bool isRecovery = false;
-bool isKeyPressed = false;
+long departureTime, absoluteActualTime, actualTime;
+String JSONline;
+
+
 
 int beepOffTimer, beepOnTimer, beepOffTime, beepOnTime ;
 
@@ -74,18 +76,36 @@ volatile defBeeper beeperStatus = beeperIdle;
 
 enum defStatus {
   admin,
-  waitForNTP,
-  doNothing,
+  idle,
   requestLeft,
   requestRight,
-  wait,
-  waitForNext,
   recovery
 };
 
-defStatus status, lastStatus, lastStatusSaved;
+defStatus status, lastStatus;
+
+
+struct strConfig {
+  String ssid;
+  String password;
+  byte  IP[4];
+  byte  Netmask[4];
+  byte  Gateway[4];
+  boolean dhcp;
+  String ntpServerName;
+  long Update_Time_Via_NTP_Every;
+  long timeZone;
+  boolean isDayLightSaving;
+  String DeviceName;
+  byte wayToStation;
+  byte warningBegin;
+  String base;
+  String right;
+  String left;
+} config;
 
 byte currentDirection;
+defStatus _lastStatus;
 
 
 

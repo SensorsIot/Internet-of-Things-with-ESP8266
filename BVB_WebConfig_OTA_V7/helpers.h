@@ -1,29 +1,6 @@
 #ifndef HELPERS_H
 #define HELPERS_H
-//#define ESP_12
-
-
-
-
-struct strConfig {
-  String ssid;
-  String password;
-  byte  IP[4];
-  byte  Netmask[4];
-  byte  Gateway[4];
-  boolean dhcp;
-  String ntpServerName;
-  long Update_Time_Via_NTP_Every;
-  long timeZone;
-  boolean isDayLightSaving;
-  String DeviceName;
-  byte wayToStation;
-  byte warningBegin;
-  String base;
-  String right;
-  String left;
-} config;
-
+// #define ESP_12
 
 
 //
