@@ -165,4 +165,8 @@ void ISRsecondTick()
   absoluteActualTime = adjustTimeZone(UnixTimestamp, config.timeZone, config.isDayLightSaving);
   DateTime = ConvertUnixTimeStamp(absoluteActualTime);  //  convert to DateTime format
   actualTime = 3600 * DateTime.hour + 60 * DateTime.minute + DateTime.second;
+  if (millis() - customWatchdog > 30000){
+    Serial.println("CustomWatchdog bites. Bye");
+    ESP.reset();
+  }
 }

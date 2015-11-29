@@ -38,8 +38,8 @@ int freq = -1; // signal off
 
 int counter = 0;
 
-#define LOOP_FAST 60 * 100
-#define LOOP_SLOW 120 * 100
+#define LOOP_FAST 60 * 1000
+#define LOOP_SLOW 120 * 1000
 #define BEEPTICKER 100
 char serverTransport[] = "transport.opendata.ch";
 String url;
@@ -55,6 +55,7 @@ unsigned long  ledCounter;
 char str[80];
 long departureTime, absoluteActualTime, actualTime;
 String JSONline;
+long departureTimeStamp, lastDepartureTimeStamp, customWatchdog;
 
 
 
