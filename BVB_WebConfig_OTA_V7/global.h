@@ -217,7 +217,7 @@ boolean ReadConfig()
     config.warningBegin = EEPROM.read(256);
     config.wayToStation = EEPROM.read(257);
 
-    config.DeviceName = ReadStringFromEEPROM(306);
+    config.DeviceName = ReadStringFromEEPROM(258);
     return true;
 
   }
