@@ -1,5 +1,4 @@
 # Internet-of-Things-with-ESP8266
-Initial commit
 
 This project develops a framework for IoT devices including:
 
@@ -17,5 +16,5 @@ A sleep mode to extend battery life
 
 A new software has to  be loaded over the air
 
-A toutorial is on youtube: https://www.youtube.com/playlist?list=PL3XBzmAj53Rl2vNyL9ucv87xnbUHzpSPw
+A tutorial is on youtube: https://www.youtube.com/playlist?list=PL3XBzmAj53Rl2vNyL9ucv87xnbUHzpSPw
 
