@@ -32,6 +32,16 @@
 #include <Ticker.h>
 #include <EEPROM.h>
 #include <WiFiUdp.h>
+
+/* credentials.h has to be in your libary folder. its content is:
+
+#define mySSID "yourSSID"
+#define myPASSWORD "yourPassword"
+
+If you do not want this file, hard-code your credentials in this sketch
+
+*/
+
 #include <credentials.h>
 
 #include "helpers.h"
@@ -91,8 +101,9 @@ void setup ( void ) {
   {
     // DEFAULT CONFIG
     Serial.println("Setting default parameters");
-    config.ssid = ASP_SSID; // SSID of access point
-    config.password = ASP_password;  // password of access point
+    // please define the credentials either in the file credentials.h or here
+    config.ssid = mySSID; // SSID of access point
+    config.password = mypassword;  // password of access point
     config.dhcp = true;
     config.IP[0] = 192; config.IP[1] = 168; config.IP[2] = 1; config.IP[3] = 100;
     config.Netmask[0] = 255; config.Netmask[1] = 255; config.Netmask[2] = 255; config.Netmask[3] = 0;
